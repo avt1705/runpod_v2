@@ -5,3 +5,4 @@ runpod
 accelerate
 safetensors
 pillow
+protobuf
