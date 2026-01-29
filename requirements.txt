@@ -1,0 +1,7 @@
+torch
+diffusers
+transformers
+runpod
+accelerate
+safetensors
+pillow
