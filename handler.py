@@ -1,48 +1,45 @@
 import runpod
-from diffusers import DiffusionPipeline
 import torch
 import base64
+import os
 from io import BytesIO
+from diffusers import FluxPipeline
+from huggingface_hub import login
 
-# Load the Hugging Face model
-pipe = DiffusionPipeline.from_pretrained(
+# Authenticate with Hugging Face using the env var
+login(os.getenv("HUGGINGFACE_HUB_TOKEN"))
+
+# Load the model in bfloat16 (Required for FLUX stability and GQA support)
+pipe = FluxPipeline.from_pretrained(
     "black-forest-labs/FLUX.1-dev",
-    torch_dtype=torch.float16
+    torch_dtype=torch.bfloat16,
+    use_auth_token=os.getenv("HUGGINGFACE_HUB_TOKEN")  # ensure gated repo access
 ).to("cuda")
 
 def handler(event):
-    """
-    event: JSON input from RunPod request
-    Example request:
-    {
-      "input": {
-        "prompt": "A futuristic city skyline at sunset"
-      }
-    }
-    """
     # Get user input prompt
     prompt = event.get("input", {}).get("prompt", None)
 
     if not prompt:
         return {"error": "No prompt provided in request."}
 
-    # Generate image from prompt
-    image = pipe(prompt).images[0]
+    # Generate image
+    image = pipe(
+        prompt,
+        height=1024,
+        width=1024,
+        guidance_scale=3.5,
+        num_inference_steps=50
+    ).images[0]
 
-    # Save image temporarily
-    output_path = "/tmp/generated.png"
-    image.save(output_path)
-
-    # Convert image to base64 string
+    # Save and encode
     buffer = BytesIO()
     image.save(buffer, format="PNG")
     image_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
-    # Return both path and base64
     return {
-        "output_path": output_path,
         "image_base64": image_b64
     }
 
-# Start RunPod serverless handler
+#testing for new redeploy
 runpod.serverless.start({"handler": handler})
